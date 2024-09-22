@@ -34,7 +34,7 @@ impl Plugin for ControllerPlugin {
 struct MovementScale(f32);
 
 #[derive(Debug, States, Clone, Copy, PartialEq, Eq, Hash, Default)]
-enum ControlState {
+pub enum ControlState {
     #[default]
     Unfocused,
     Focused,
