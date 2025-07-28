@@ -24,8 +24,7 @@ impl Plugin for ControllerPlugin {
             )
             .add_systems(
                 Update,
-                check_confine_system
-                    .run_if(in_state(ControlState::Unfocused)),
+                check_confine_system.run_if(in_state(ControlState::Unfocused)),
             );
     }
 }
@@ -44,11 +43,11 @@ fn recenter_mouse(
     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
     mut last_mouse_pos: Local<Option<Vec2>>,
 ) {
-    let mut window = primary_window.get_single_mut().unwrap();
-    if window.cursor.grab_mode == CursorGrabMode::Confined && last_mouse_pos.is_none() {
+    let mut window = primary_window.single_mut().unwrap();
+    if window.cursor_options.grab_mode == CursorGrabMode::Confined && last_mouse_pos.is_none() {
         *last_mouse_pos = window.cursor_position();
     }
-    if window.cursor.grab_mode != CursorGrabMode::Confined {
+    if window.cursor_options.grab_mode != CursorGrabMode::Confined {
         *last_mouse_pos = None;
         return;
     }
@@ -59,13 +58,14 @@ fn recenter_mouse(
 
 fn check_confine_system(
     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     mut commands: Commands,
 ) {
-    if mouse_button.just_pressed(MouseButton::Middle) {
-        let mut window = primary_window.get_single_mut().unwrap();
-        window.cursor.grab_mode = CursorGrabMode::Confined;
-        window.cursor.visible = false;
+    if mouse_button.just_pressed(MouseButton::Middle) || keyboard_input.just_pressed(KeyCode::Tab) {
+        let mut window = primary_window.single_mut().unwrap();
+        window.cursor_options.grab_mode = CursorGrabMode::Confined;
+        window.cursor_options.visible = false;
         commands.insert_resource(NextState::Pending(ControlState::Focused));
     }
 }
@@ -75,10 +75,10 @@ fn check_unconfine_system(
     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
     mut commands: Commands,
 ) {
-    if keyboard_input.pressed(KeyCode::Escape) {
-        let mut window = primary_window.get_single_mut().unwrap();
-        window.cursor.grab_mode = CursorGrabMode::None;
-        window.cursor.visible = true;
+    if keyboard_input.pressed(KeyCode::Escape) || keyboard_input.just_pressed(KeyCode::Tab) {
+        let mut window = primary_window.single_mut().unwrap();
+        window.cursor_options.grab_mode = CursorGrabMode::None;
+        window.cursor_options.visible = true;
         commands.insert_resource(NextState::Pending(ControlState::Unfocused));
     }
 }
@@ -87,7 +87,7 @@ fn camera_look(
     mut camera: Query<&mut Transform, With<Camera>>,
     mut mouse_movement: EventReader<MouseMotion>,
 ) {
-    if let Ok(mut camera_transform) = camera.get_single_mut() {
+    if let Ok(mut camera_transform) = camera.single_mut() {
         for event in mouse_movement.read() {
             camera_transform.rotation *= Quat::from_rotation_x(-0.002 * event.delta.y)
                 * Quat::from_rotation_y(-0.002 * event.delta.x);
@@ -105,7 +105,7 @@ fn keyboard_input(
     mut camera: Query<&mut Transform, With<Camera>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
 ) {
-    if let Ok(mut camera_transform) = camera.get_single_mut() {
+    if let Ok(mut camera_transform) = camera.single_mut() {
         let scale = speed.0 * (keyboard_input.pressed(KeyCode::End) as i32 as f32 + 1.);
         let transform = *camera_transform;
         if keyboard_input.pressed(KeyCode::KeyW) {
