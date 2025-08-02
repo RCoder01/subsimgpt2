@@ -25,20 +25,21 @@ struct Cubemap {
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    camera: Query<Entity, With<Camera>>,
+    cameras: Query<Entity, With<Camera>>,
 ) {
-    let camera = camera.single().unwrap();
-    let skybox_handle = asset_server.load("textures/Ryfjallet_cubemap.png");
-    commands.entity(camera).insert(Skybox {
-        image: skybox_handle.clone(),
-        brightness: 1000.0,
-        rotation: Quat::IDENTITY,
-    });
+    for camera in cameras {
+        let skybox_handle = asset_server.load("textures/Ryfjallet_cubemap.png");
+        commands.entity(camera).insert(Skybox {
+            image: skybox_handle.clone(),
+            brightness: 1000.0,
+            rotation: Quat::IDENTITY,
+        });
 
-    commands.insert_resource(Cubemap {
-        is_loaded: false,
-        image_handle: skybox_handle,
-    });
+        commands.insert_resource(Cubemap {
+            is_loaded: false,
+            image_handle: skybox_handle,
+        });
+    }
 }
 
 fn asset_loaded(

@@ -1,14 +1,18 @@
 [package]
 name = "subsimgpt2"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
+async-io = "2.5.0"
 avian3d = "0.3.1"
 bevy = "0.16.1"
 bevy-inspector-egui = "0.32.0"
 bevy_egui = "0.35.1"
 bevy_framepace = "0.19.1"
+bytemuck = { version = "1.23.1", default-features = false, features = ["derive"] }
+futures-lite = "2.6.0"
+image = { version = "0.25.6", default-features = false, features = ["qoi"] }
 rand = "0.8.5"
 
 [profile.dev.package."*"]

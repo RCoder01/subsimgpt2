@@ -5,6 +5,8 @@ use bevy::{
     window::{CursorGrabMode, PrimaryWindow},
 };
 
+use crate::ViewCamera;
+
 pub struct ControllerPlugin;
 
 impl Plugin for ControllerPlugin {
@@ -84,7 +86,7 @@ fn check_unconfine_system(
 }
 
 fn camera_look(
-    mut camera: Query<&mut Transform, With<Camera>>,
+    mut camera: Query<&mut Transform, With<ViewCamera>>,
     mut mouse_movement: EventReader<MouseMotion>,
 ) {
     if let Ok(mut camera_transform) = camera.single_mut() {
@@ -102,7 +104,7 @@ fn camera_look(
 
 fn keyboard_input(
     speed: Res<MovementScale>,
-    mut camera: Query<&mut Transform, With<Camera>>,
+    mut camera: Query<&mut Transform, With<ViewCamera>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
 ) {
     if let Ok(mut camera_transform) = camera.single_mut() {
