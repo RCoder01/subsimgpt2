@@ -37,7 +37,7 @@ fn main() {
             EguiPlugin::default(),
             WorldInspectorPlugin::new(),
             LogDiagnosticsPlugin::default(),
-            FrameTimeDiagnosticsPlugin::default(),
+            // FrameTimeDiagnosticsPlugin::default(),
             SkyboxPlugin,
             PhysicsPlugins::default(),
             PhysicsDebugPlugin::default(),
@@ -46,10 +46,12 @@ fn main() {
         ))
         .add_plugins(ControllerPlugin)
         .add_systems(Startup, (startup_spawner, disable_vsync))
+        .add_sub_state::<TeleopState>()
         .add_systems(
             Update,
-            sub_controls.run_if(in_state(control::ControlState::Unfocused)),
+            set_teleop_state.run_if(in_state(control::ControlState::Unfocused)),
         )
+        .add_systems(Update, sub_controls.run_if(in_state(TeleopState::Teleop)))
         .add_systems(Update, |mut gizmos: Gizmos| {
             gizmos.axes(Transform::default(), 1.)
         })
@@ -107,6 +109,14 @@ struct BottomCamera;
 #[reflect(Component, Debug)]
 struct SubControls {
     scale: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, SubStates)]
+#[source(control::ControlState = control::ControlState::Unfocused)]
+pub enum TeleopState {
+    #[default]
+    NoTeleop,
+    Teleop,
 }
 
 impl SubControls {
@@ -354,6 +364,19 @@ fn disable_vsync(mut window: Query<&mut Window, With<PrimaryWindow>>) -> Result 
     let mut window = window.single_mut()?;
     window.present_mode = PresentMode::AutoNoVsync;
     Ok(())
+}
+
+fn set_teleop_state(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    state: Res<State<TeleopState>>,
+    mut commands: Commands,
+) {
+    if keyboard_input.just_pressed(KeyCode::KeyT) {
+        commands.insert_resource(NextState::Pending(match **state {
+            TeleopState::NoTeleop => TeleopState::Teleop,
+            TeleopState::Teleop => TeleopState::NoTeleop,
+        }));
+    }
 }
 
 fn sub_controls(

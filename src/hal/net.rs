@@ -1,6 +1,7 @@
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     sync::mpsc::{Receiver, Sender, channel},
+    time::Duration,
 };
 
 use super::cameras::Image;
@@ -31,34 +32,48 @@ fn receiver(
     Ok(())
 }
 
-pub const SIM_IP: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1818);
-pub const HAL_IP: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1817);
+pub const HAL_INCOMING: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1817);
+pub const HAL_OUTGOING: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1818);
 
 fn server() -> Result<Receiver<IncomingMessage>> {
     let (tx, rx) = channel();
-    let listener = Async::<TcpListener>::bind(SIM_IP)?;
     IoTaskPool::get()
         .spawn(async move {
-            let incoming = listener.incoming();
-            pin!(incoming);
-
-            while let Some(stream) = incoming.next().await {
-                let Ok(stream) = stream else {
+            loop {
+                let Ok(mut client) = Async::<TcpStream>::connect(HAL_OUTGOING).await else {
                     continue;
                 };
-                let tx = tx.clone();
-                IoTaskPool::get()
-                    .spawn(async move { handle_connection(stream, tx) })
-                    .detach();
+                info!("Connection to HAL established");
+                loop {
+                    match handle_connection(&mut client).await {
+                        Ok(Some(message)) => {
+                            dbg!(&message);
+                            tx.send(message).expect("Connection should not have closed");
+                        }
+                        Ok(None) => {
+                            const WAIT_PERIOD: Duration = Duration::from_millis(1000);
+                            async_io::Timer::after(WAIT_PERIOD).await;
+                            break;
+                        }
+                        Err(e) => {
+                            warn!("Failed to read incoming data from HAL: {}", e);
+                            break;
+                        }
+                    }
+                }
             }
         })
         .detach();
     Ok(rx)
 }
 
-async fn handle_connection(mut stream: Async<TcpStream>, tx: Sender<IncomingMessage>) -> Result {
+async fn handle_connection(stream: &mut Async<TcpStream>) -> Result<Option<IncomingMessage>> {
     let mut len = [0u8; 8];
-    stream.read_exact(&mut len).await?;
+    match stream.read_exact(&mut len).await {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
+        Err(e) => return Err(e.into()),
+    }
     let _len = u64::from_be_bytes(len);
     let mut kind = 0u8;
     stream.read_exact(std::array::from_mut(&mut kind)).await?;
@@ -83,8 +98,7 @@ async fn handle_connection(mut stream: Async<TcpStream>, tx: Sender<IncomingMess
             return Err("Should not receive incoming sensors or images".into());
         }
     };
-    let _ = tx.send(message);
-    Ok(())
+    Ok(Some(message))
 }
 
 #[repr(u8)]
@@ -183,7 +197,7 @@ pub enum IncomingMessage {
 }
 
 pub async fn send(message: OutgoingMessage) -> Result {
-    let mut client = Async::<TcpStream>::connect(HAL_IP).await?;
+    let mut client = Async::<TcpStream>::connect(HAL_INCOMING).await?;
     client.write_all(&message.len().to_be_bytes()).await?;
     client.write_all(&[message.kind() as u8]).await?;
     match message {
