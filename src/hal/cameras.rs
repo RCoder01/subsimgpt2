@@ -1,15 +1,15 @@
 use async_io::Timer;
+use bevy::render::camera::ExtractedCamera;
 use std::sync::mpsc::channel;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::{Maintain, MapMode};
 use bevy::tasks::IoTaskPool;
 use bevy::{prelude::*, render::renderer::RenderDevice};
 use futures_lite::FutureExt as _;
-use std::ops::Deref;
 
-use crate::{BottomCamera, ZedCamera};
+use crate::sim::{BottomCamera, ZedCamera};
 
 use super::BotCamImage;
 use super::net::{OutgoingMessage, send};
@@ -56,38 +56,47 @@ fn get_image(
     })
 }
 
-pub fn save_zed_image(
-    zed_cam: Query<&Camera, With<ZedCamera>>,
+// TODO: better rate limiting
+pub fn send_zed_image(
+    zed_cam: Query<(), (With<ExtractedCamera>, With<ZedCamera>)>,
     zed_image: Option<Res<ZedImage>>,
     sources: Res<RenderAssets<GpuImageExportSource>>,
     render_device: Res<RenderDevice>,
+    mut counter: Local<usize>,
 ) -> Result {
-    if !zed_cam.iter().any(|cam| cam.is_active) {
+    if zed_cam.is_empty() {
         return Ok(());
     }
     let Some(zed_image) = zed_image else {
         return Ok(());
     };
+    *counter += 1;
+    if *counter != 10 {
+        return Ok(());
+    }
+    *counter = 0;
     let image = get_image(&zed_image.0, &*sources, &*render_device)?;
     IoTaskPool::get()
         .spawn(
-            async move { send(OutgoingMessage::ZedImage(image)).await }.or(async {
-                Timer::after(Duration::from_secs_f32(1.0)).await;
-                Err("Cancelled".into())
-            }),
+            async move { send(OutgoingMessage::ZedImage(SystemTime::now(), image)).await }.or(
+                async {
+                    Timer::after(Duration::from_secs_f32(1.0)).await;
+                    Err("Cancelled".into())
+                },
+            ),
         )
         .detach();
 
     Ok(())
 }
 
-pub fn save_botcam_image(
-    bot_cam: Query<&Camera, With<BottomCamera>>,
+pub fn send_botcam_image(
+    bot_cam: Query<(), (With<ExtractedCamera>, With<BottomCamera>)>,
     botcam_image: Option<Res<BotCamImage>>,
     sources: Res<RenderAssets<GpuImageExportSource>>,
     render_device: Res<RenderDevice>,
 ) -> Result {
-    if !bot_cam.iter().any(|cam| cam.is_active) {
+    if bot_cam.is_empty() {
         return Ok(());
     }
     let Some(botcam_image) = botcam_image else {
@@ -96,10 +105,12 @@ pub fn save_botcam_image(
     let image = get_image(&botcam_image.0, &*sources, &*render_device)?;
     IoTaskPool::get()
         .spawn(
-            async move { send(OutgoingMessage::BotcamImage(image)).await }.or(async {
-                Timer::after(Duration::from_secs_f32(1.0)).await;
-                Err("Cancelled".into())
-            }),
+            async move { send(OutgoingMessage::BotcamImage(SystemTime::now(), image)).await }.or(
+                async {
+                    Timer::after(Duration::from_secs_f32(1.0)).await;
+                    Err("Cancelled".into())
+                },
+            ),
         )
         .detach();
 

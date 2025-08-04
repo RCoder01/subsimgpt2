@@ -1,14 +1,16 @@
 use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
-    sync::mpsc::{Receiver, Sender, channel},
-    time::Duration,
+    mem::{offset_of, size_of},
+    net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream},
+    sync::mpsc::{Receiver, channel},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+use crate::utils::flatten_array;
 
 use super::cameras::Image;
 use async_io::Async;
 use bevy::{prelude::*, tasks::IoTaskPool};
-use bytemuck::{NoUninit, bytes_of};
-use futures_lite::{AsyncReadExt, AsyncWriteExt, StreamExt as _, pin};
+use futures_lite::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug, Default, Clone)]
 pub struct NetPlugin;
@@ -127,41 +129,93 @@ impl TryFrom<u8> for MessageKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, NoUninit)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Dvl {
-    velocity_a: f32,
-    velocity_b: f32,
-    velocity_c: f32,
+    pub velocity_a: f32,
+    pub velocity_b: f32,
+    pub velocity_c: f32,
 }
 
-#[derive(Debug, Clone, Copy, NoUninit)]
+impl Dvl {
+    pub fn to_be_bytes(&self) -> [u8; size_of::<Self>()] {
+        flatten_array([
+            self.velocity_a.to_be_bytes(),
+            self.velocity_b.to_be_bytes(),
+            self.velocity_c.to_be_bytes(),
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ImuINS {
-    theta: [f32; 3],
+    pub theta: [f32; 3],
 }
 
-#[derive(Debug, Clone, Copy, NoUninit)]
+impl ImuINS {
+    pub fn to_be_bytes(&self) -> [u8; size_of::<Self>()] {
+        flatten_array([
+            self.theta[0].to_be_bytes(),
+            self.theta[1].to_be_bytes(),
+            self.theta[2].to_be_bytes(),
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ImuPIMU {
-    dtheta: [f32; 3],
-    dvel: [f32; 3],
-    dt: f32,
+    pub dtheta: [f32; 3],
+    pub dvel: [f32; 3],
+    pub dt: f32,
 }
 
-#[derive(Debug, Clone, Copy, NoUninit)]
+impl ImuPIMU {
+    pub fn to_be_bytes(&self) -> [u8; size_of::<Self>()] {
+        flatten_array([
+            self.dtheta[0].to_be_bytes(),
+            self.dtheta[1].to_be_bytes(),
+            self.dtheta[2].to_be_bytes(),
+            self.dvel[0].to_be_bytes(),
+            self.dvel[1].to_be_bytes(),
+            self.dvel[2].to_be_bytes(),
+            self.dt.to_be_bytes(),
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct SensorMessage {
-    depth: f32,
-    dvl: Dvl,
-    imu_ins: ImuINS,
-    imu_pimu: ImuPIMU,
+    pub depth: f32,
+    pub dvl: Dvl,
+    pub imu_ins: ImuINS,
+    pub imu_pimu: ImuPIMU,
+}
+
+impl SensorMessage {
+    pub fn to_be_bytes(&self) -> [u8; size_of::<Self>()] {
+        let mut bytes = [0; size_of::<Self>()];
+        macro_rules! copy_field {
+            ($field:ident) => {
+                bytes[offset_of!(Self, $field)
+                    ..offset_of!(Self, $field) + size_of_val(&self.$field)]
+                    .copy_from_slice(&self.$field.to_be_bytes());
+            };
+        }
+        copy_field!(depth);
+        copy_field!(dvl);
+        copy_field!(imu_ins);
+        copy_field!(imu_pimu);
+        bytes
+    }
 }
 
 pub enum OutgoingMessage {
     Sensors(SensorMessage),
-    BotcamImage(Image),
-    ZedImage(Image),
+    BotcamImage(SystemTime, Image),
+    ZedImage(SystemTime, Image),
 }
 
 impl OutgoingMessage {
@@ -172,8 +226,8 @@ impl OutgoingMessage {
     fn len(&self) -> u64 {
         (1 + match self {
             OutgoingMessage::Sensors(sensors) => std::mem::size_of_val(sensors),
-            OutgoingMessage::BotcamImage(image) | OutgoingMessage::ZedImage(image) => {
-                std::mem::size_of::<u32>() * 2 + image.buffer.len()
+            OutgoingMessage::BotcamImage(_, image) | OutgoingMessage::ZedImage(_, image) => {
+                size_of::<f64>() + size_of::<u32>() * 2 + size_of::<u64>() + image.buffer.len()
             }
         }) as u64
     }
@@ -182,9 +236,9 @@ impl OutgoingMessage {
 impl Into<MessageKind> for &OutgoingMessage {
     fn into(self) -> MessageKind {
         match self {
-            OutgoingMessage::Sensors(_) => MessageKind::Sensors,
-            OutgoingMessage::BotcamImage(_) => MessageKind::BotcamImage,
-            OutgoingMessage::ZedImage(_) => MessageKind::ZedImage,
+            OutgoingMessage::Sensors(..) => MessageKind::Sensors,
+            OutgoingMessage::BotcamImage(..) => MessageKind::BotcamImage,
+            OutgoingMessage::ZedImage(..) => MessageKind::ZedImage,
         }
     }
 }
@@ -202,11 +256,21 @@ pub async fn send(message: OutgoingMessage) -> Result {
     client.write_all(&[message.kind() as u8]).await?;
     match message {
         OutgoingMessage::Sensors(sensors) => {
-            client.write_all(bytes_of(&sensors)).await?;
+            client.write_all(&sensors.to_be_bytes()).await?;
         }
-        OutgoingMessage::BotcamImage(image) | OutgoingMessage::ZedImage(image) => {
+        OutgoingMessage::BotcamImage(time, image) | OutgoingMessage::ZedImage(time, image) => {
+            let since_epoch = time
+                .duration_since(UNIX_EPOCH)
+                .expect("Time should not be before UNIX_EPOCH")
+                .as_secs_f64();
+
+            // TODO: image compression
+            client.write_all(&since_epoch.to_be_bytes()).await?;
             client.write_all(&image.width.to_be_bytes()).await?;
             client.write_all(&image.height.to_be_bytes()).await?;
+            client
+                .write_all(&(image.buffer.len() as u64).to_be_bytes())
+                .await?;
             client.write_all(&image.buffer).await?;
         }
     }

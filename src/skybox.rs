@@ -5,7 +5,7 @@ use bevy::{
     render::render_resource::{TextureViewDescriptor, TextureViewDimension},
 };
 
-use crate::startup_spawner;
+use crate::sim::scene::startup_spawner;
 
 pub struct SkyboxPlugin;
 

@@ -1,30 +1,21 @@
-use std::{
-    net::{TcpStream, ToSocketAddrs},
-    sync::mpsc::channel,
-    time::Duration,
-};
-
-use async_io::{Async, Timer};
 use bevy::{
     asset::RenderAssetUsages,
     ecs::system::{SystemParamItem, lifetimeless::SRes},
     prelude::*,
     render::{
-        Render, RenderApp, RenderSet,
+        RenderApp,
         extract_resource::{ExtractResource, ExtractResourcePlugin},
         graph::CameraDriverLabel,
         render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
         render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext, RenderLabel},
         render_resource::{
-            Buffer, BufferDescriptor, BufferUsages, Extent3d, Maintain, MapMode,
-            TexelCopyBufferInfo, TexelCopyBufferLayout,
+            Buffer, BufferDescriptor, BufferUsages, Extent3d, TexelCopyBufferInfo,
+            TexelCopyBufferLayout,
         },
         renderer::{RenderContext, RenderDevice},
         texture::GpuImage,
     },
-    tasks::IoTaskPool,
 };
-use futures_lite::{AsyncWriteExt as _, FutureExt as _};
 
 #[derive(Default, Debug)]
 pub struct ImageExportPlugin;

@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::{BottomCamera, ThrusterOf, ThrusterTarget, ZedCamera, utils::zero_or_one_mut};
+use crate::sim::{
+    BottomCamera, ZedCamera,
+    sub::thruster::{ThrusterOf, ThrusterTarget},
+};
 
 use super::net::IncomingMessage;
 
@@ -44,11 +47,13 @@ pub fn handle_cameras(
     }
     if let Some(new_active) = bot_cam_on {
         for mut cam in bottom_cameras {
+            info!("Setting botcam to {new_active}");
             cam.is_active = *new_active;
         }
     }
     if let Some(new_active) = zed_cam_on {
         for mut cam in zed_cameras {
+            info!("Setting zed to {new_active}");
             cam.is_active = *new_active;
         }
     }
