@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+arrayvec = "0.7.6"
 async-io = "2.5.0"
 avian3d = "0.3.1"
 bevy = "0.16.1"
@@ -13,6 +14,7 @@ bevy_framepace = "0.19.1"
 futures-lite = "2.6.0"
 image = { version = "0.25.6", default-features = false, features = ["qoi"] }
 rand = "0.8.5"
+smallvec = "1.15.1"
 
 [profile.dev.package."*"]
 opt-level = 3

@@ -1,3 +1,5 @@
+use core::f32::consts::FRAC_PI_2;
+
 use avian3d::prelude::{
     AngularDamping, AngularInertia, AngularInertiaTensor, CenterOfMass, Collider, ExternalForce,
     LinearDamping, Mass, RigidBody,
@@ -13,9 +15,8 @@ use bevy::{
 
 use crate::{
     frustum_gizmo::ShowFrustumGizmo,
-    hal::{ImageExportSource, Sensors, ZedImage},
+    hal::{CameraEnabled, ImageExportSource, MLTargets, Sensors, ZedCamera, ZedImage},
     sim::{
-        ZedCamera,
         physics::SubBuoyancy,
         sub::{
             SubControls,
@@ -26,11 +27,20 @@ use crate::{
 
 const SUB_SIZE: Vec3 = Vec3::new(0.35, 0.15, 0.35);
 
+pub struct SubEntity {
+    pub sub: Entity,
+    pub zed_left: Entity,
+    // pub zed_right: Entity,
+    // pub bot_cam: Entity,
+}
+
 pub fn spawn_sub(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
-) -> Entity {
+    images: &mut Assets<Image>,
+    export_sources: &mut Assets<ImageExportSource>,
+) -> SubEntity {
     let sub_material = materials.add(StandardMaterial {
         base_color: Srgba::GREEN.into(),
         ..default()
@@ -41,24 +51,25 @@ pub fn spawn_sub(
         .spawn((
             Mesh3d(meshes.add(sub_cuboid)),
             MeshMaterial3d(sub_material),
-            Transform::from_translation(Vec3::new(0., -1., 0.)).with_scale(Vec3::splat(3.)),
+            Transform::from_translation(Vec3::new(0., -1., 0.)),
             Name::new("Sub"),
-            SubControls::new(1.0),
+            SubControls::new(0.2),
             Collider::from(sub_cuboid),
             RigidBody::Dynamic,
             SubBuoyancy::new(sub_cuboid, 1.01),
             // TODO: Make this vary based on % underwater
-            (LinearDamping(0.5), AngularDamping(1.0)),
+            (LinearDamping(1.0), AngularDamping(1.0)),
             //
             ExternalForce::ZERO.with_persistence(false),
             CenterOfMass(com),
             Mass(20.),
             // TODO: What might the tensor's value be?
-            AngularInertia::from(AngularInertiaTensor::default() / 0.05),
+            AngularInertia::from(AngularInertiaTensor::default() / 0.2),
             Thrusters::default(),
             Sensors::default(),
         ))
         .id();
+    let ZedCamEntity { left } = spawn_zed(commands, sub_entity, images, export_sources);
 
     let thruster_material = materials.add(StandardMaterial {
         base_color: Srgba::BLACK.into(),
@@ -67,10 +78,10 @@ pub fn spawn_sub(
     let thruster_mesh = Extrusion::new(Annulus::new(0.05, 0.06), 0.11)
         .mesh()
         .build()
-        .rotated_by(Quat::from_axis_angle(Vec3::X, core::f32::consts::FRAC_PI_2));
+        .rotated_by(Quat::from_axis_angle(Vec3::X, FRAC_PI_2));
     let thruster_mesh = meshes.add(thruster_mesh);
     let base_translation = com * 0.4;
-    let base_rotation = Quat::from_axis_angle(Vec3::Z, -core::f32::consts::FRAC_PI_2);
+    let base_rotation = Quat::from_axis_angle(Vec3::Z, -FRAC_PI_2);
     for thruster in THRUSTERS {
         commands.spawn((
             ChildOf(sub_entity),
@@ -85,18 +96,27 @@ pub fn spawn_sub(
             MeshMaterial3d(thruster_material.clone()),
             Mass(0.4),
             Collider::cylinder(0.06, 0.11),
+            Name::new("Thruster"),
         ));
     }
 
-    sub_entity
+    SubEntity {
+        sub: sub_entity,
+        zed_left: left,
+    }
 }
 
-pub fn spawn_zed(
+struct ZedCamEntity {
+    left: Entity,
+    // right: Entity,
+}
+
+fn spawn_zed(
     commands: &mut Commands,
     sub: Entity,
     images: &mut Assets<Image>,
     export_sources: &mut Assets<ImageExportSource>,
-) {
+) -> ZedCamEntity {
     let mut image = Image::new_fill(
         render_resource::Extent3d {
             width: 1280,
@@ -112,27 +132,34 @@ pub fn spawn_zed(
     image.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC;
     let target = images.add(image);
     commands.insert_resource(ZedImage(export_sources.add(target.clone())));
-    // right camera
-    commands.spawn((
-        Camera3d::default(),
-        Camera {
-            viewport: Some(Viewport {
-                physical_position: UVec2::new(640, 0),
-                physical_size: UVec2::new(640, 480),
+    // left camera
+    let left = commands
+        .spawn((
+            Camera3d::default(),
+            Camera {
+                viewport: Some(Viewport {
+                    physical_position: UVec2::new(0, 0),
+                    physical_size: UVec2::new(640, 480),
+                    ..default()
+                }),
+                target: RenderTarget::Image(target.into()),
+                ..default()
+            },
+            Projection::Perspective(PerspectiveProjection {
+                fov: 70.0,
                 ..default()
             }),
-            target: RenderTarget::Image(target.into()),
-            is_active: true,
-            ..default()
-        },
-        Transform::from_translation(Vec3::new(0.08, 0.0, 0.03)).with_rotation(
-            Quat::from_axis_angle(Vec3::Y, -core::f32::consts::FRAC_PI_2),
-        ),
-        ShowFrustumGizmo::default(),
-        ZedCamera,
-        ChildOf(sub),
-        Name::new("Zed cam"),
-    ));
+            Transform::from_translation(Vec3::new(0.08, 0.0, -0.03))
+                .with_rotation(Quat::from_axis_angle(Vec3::Y, -FRAC_PI_2)),
+            ShowFrustumGizmo::default(),
+            ZedCamera::default(),
+            CameraEnabled(true),
+            ChildOf(sub),
+            MLTargets::default(),
+            Name::new("Left Zed cam"),
+        ))
+        .id();
+    ZedCamEntity { left }
 }
 
 struct ThrusterDescriptor {
@@ -154,7 +181,7 @@ impl ThrusterDescriptor {
         Quat::from_euler(
             EulerRot::YZX,
             -self.yaw.to_radians(),
-            -self.pitch.to_radians(),
+            self.pitch.to_radians(),
             self.roll.to_radians(),
         )
     }

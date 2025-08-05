@@ -2,8 +2,8 @@ pub mod thruster;
 
 use bevy::prelude::*;
 use thruster::{
-    ThrusterOf, ThrusterParams, ThrusterState, ThrusterTarget, Thrusters, debug_thruster_speeds,
-    thruster_physics, update_thruster_speeds,
+    ThrusterForce, ThrusterOf, ThrusterParams, ThrusterState, ThrusterTarget, Thrusters,
+    debug_thruster_states, thruster_physics, update_thruster_forces, update_thruster_states,
 };
 
 use crate::control::ControlState;
@@ -18,9 +18,10 @@ impl Plugin for SubPlugin {
         app.add_systems(
             Update,
             (
-                update_thruster_speeds,
-                debug_thruster_speeds.after(update_thruster_speeds),
-                thruster_physics.after(update_thruster_speeds),
+                update_thruster_states,
+                update_thruster_forces.after(update_thruster_states),
+                debug_thruster_states.after(update_thruster_forces),
+                thruster_physics.after(update_thruster_forces),
             )
                 .in_set(SubPhysicsSet),
         )
@@ -38,12 +39,15 @@ impl Plugin for SubPlugin {
         )
         .add_systems(Update, sub_controls.run_if(in_state(TeleopState::Teleop)))
         .add_sub_state::<TeleopState>()
-        .register_type::<SubControls>()
-        .register_type::<ThrusterOf>()
-        .register_type::<Thrusters>()
-        .register_type::<ThrusterTarget>()
-        .register_type::<ThrusterState>()
-        .register_type::<ThrusterParams>();
+        .register_type::<(
+            SubControls,
+            ThrusterOf,
+            Thrusters,
+            ThrusterTarget,
+            ThrusterState,
+            ThrusterForce,
+            ThrusterParams,
+        )>();
     }
 }
 
@@ -101,10 +105,10 @@ fn sub_controls(
         linear += Vec3::Z;
     }
     if keyboard_input.pressed(KeyCode::Space) {
-        linear += Vec3::Y;
+        linear += Vec3::NEG_Y;
     }
     if keyboard_input.pressed(KeyCode::ShiftLeft) {
-        linear += Vec3::NEG_Y;
+        linear += Vec3::Y;
     }
     if keyboard_input.pressed(KeyCode::KeyQ) {
         yaw -= 1.0;
@@ -117,7 +121,7 @@ fn sub_controls(
         if info.sub != sub {
             continue;
         }
-        target.target_speed = match info.id {
+        target.target_output = match info.id {
             0 => linear.x - linear.z - yaw,
             1 => linear.x + linear.z + yaw,
             2 => linear.x + linear.z - yaw,
@@ -126,18 +130,18 @@ fn sub_controls(
             _ => {
                 panic!("Unexpected thruster id {} for sub {sub}", info.id)
             }
-        };
-        max = max.max(target.target_speed.abs());
+        } * controls.scale;
+        max = max.max(target.target_output.abs());
     }
     if max < 1e-5 {
         return Ok(());
     }
-    let scale = controls.scale / max;
-    for (info, mut target) in thrusters {
-        if info.sub != sub {
-            continue;
-        }
-        target.target_speed *= scale;
-    }
+    // let scale = controls.scale / max;
+    // for (info, mut target) in thrusters {
+    //     if info.sub != sub {
+    //         continue;
+    //     }
+    //     target.target_speed *= scale;
+    // }
     Ok(())
 }

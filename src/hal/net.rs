@@ -1,7 +1,11 @@
 use std::{
+    mem::forget,
     mem::{offset_of, size_of},
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream},
-    sync::mpsc::{Receiver, channel},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{Receiver, channel},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -11,6 +15,7 @@ use super::cameras::Image;
 use async_io::Async;
 use bevy::{prelude::*, tasks::IoTaskPool};
 use futures_lite::{AsyncReadExt, AsyncWriteExt};
+use smallvec::SmallVec;
 
 #[derive(Debug, Default, Clone)]
 pub struct NetPlugin;
@@ -18,7 +23,8 @@ pub struct NetPlugin;
 impl Plugin for NetPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<IncomingMessage>()
-            .add_systems(PreUpdate, receiver);
+            .add_systems(PreUpdate, receiver)
+            .add_systems(Update, dbg_send_count);
     }
 }
 
@@ -32,6 +38,38 @@ fn receiver(
         incoming.write(message);
     }
     Ok(())
+}
+
+static MESSAGES_STARTED: AtomicUsize = AtomicUsize::new(0);
+static MESSAGES_FINISHED: AtomicUsize = AtomicUsize::new(0);
+static MESSAGES_CANCELLED: AtomicUsize = AtomicUsize::new(0);
+
+fn dbg_send_count(mut count: Local<usize>) {
+    *count += 1;
+    if *count != 100 {
+        return;
+    }
+    let ticks = *count;
+    *count = 0;
+    // let started = MESSAGES_STARTED.swap(0, Ordering::Relaxed);
+    // let finished = MESSAGES_FINISHED.swap(0, Ordering::Relaxed);
+    // if started == finished {
+    //     return;
+    // }
+    // warn!(
+    //     "started: {}; finished: {}; ratio: {}; in {} ticks",
+    //     started,
+    //     finished,
+    //     finished as f64 / started as f64,
+    //     ticks
+    // );
+    let cancelled = MESSAGES_CANCELLED.swap(0, Ordering::Relaxed);
+    if cancelled != 0 {
+        warn!(
+            "{} messages cancelled in the last {} ticks",
+            cancelled, ticks
+        )
+    }
 }
 
 pub const HAL_INCOMING: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1817);
@@ -49,7 +87,6 @@ fn server() -> Result<Receiver<IncomingMessage>> {
                 loop {
                     match handle_connection(&mut client).await {
                         Ok(Some(message)) => {
-                            dbg!(&message);
                             tx.send(message).expect("Connection should not have closed");
                         }
                         Ok(None) => {
@@ -108,9 +145,10 @@ pub enum MessageKind {
     Sensors = 1,
     BotcamImage = 2,
     ZedImage = 3,
-    Motors = 4,
-    BotcamOn = 5,
-    ZedOn = 6,
+    MlTarget = 4,
+    Motors = 5,
+    BotcamOn = 6,
+    ZedOn = 7,
 }
 
 impl TryFrom<u8> for MessageKind {
@@ -121,9 +159,10 @@ impl TryFrom<u8> for MessageKind {
             1 => Ok(Self::Sensors),
             2 => Ok(Self::BotcamImage),
             3 => Ok(Self::ZedImage),
-            4 => Ok(Self::Motors),
-            5 => Ok(Self::BotcamOn),
-            6 => Ok(Self::ZedOn),
+            4 => Ok(Self::MlTarget),
+            5 => Ok(Self::Motors),
+            6 => Ok(Self::BotcamOn),
+            7 => Ok(Self::ZedOn),
             _ => Err("Invalid message kind".into()),
         }
     }
@@ -212,10 +251,30 @@ impl SensorMessage {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Reflect)]
+#[reflect(Debug, Clone, PartialEq)]
+#[repr(u8)]
+pub enum MLTargetKind {
+    GateRed = 0,
+    GateBlue = 1,
+    #[default]
+    None = 255,
+}
+
+#[repr(C)]
+pub struct MLTargetData {
+    pub kind: MLTargetKind,
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
+
 pub enum OutgoingMessage {
     Sensors(SensorMessage),
     BotcamImage(SystemTime, Image),
     ZedImage(SystemTime, Image),
+    MlTarget(SmallVec<[MLTargetData; 2]>, Vec2),
 }
 
 impl OutgoingMessage {
@@ -229,6 +288,11 @@ impl OutgoingMessage {
             OutgoingMessage::BotcamImage(_, image) | OutgoingMessage::ZedImage(_, image) => {
                 size_of::<f64>() + size_of::<u32>() * 2 + size_of::<u64>() + image.buffer.len()
             }
+            OutgoingMessage::MlTarget(targets, _size) => {
+                size_of::<u8>()
+                    + size_of::<[f32; 2]>()
+                    + (size_of::<MLTargetKind>() + size_of::<[f32; 4]>()) * targets.len()
+            }
         }) as u64
     }
 }
@@ -239,6 +303,7 @@ impl Into<MessageKind> for &OutgoingMessage {
             OutgoingMessage::Sensors(..) => MessageKind::Sensors,
             OutgoingMessage::BotcamImage(..) => MessageKind::BotcamImage,
             OutgoingMessage::ZedImage(..) => MessageKind::ZedImage,
+            OutgoingMessage::MlTarget(..) => MessageKind::MlTarget,
         }
     }
 }
@@ -250,7 +315,17 @@ pub enum IncomingMessage {
     ZedOn(bool),
 }
 
+struct CancelCheck;
+
+impl Drop for CancelCheck {
+    fn drop(&mut self) {
+        MESSAGES_CANCELLED.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 pub async fn send(message: OutgoingMessage) -> Result {
+    MESSAGES_STARTED.fetch_add(1, Ordering::Relaxed);
+    let cancel = CancelCheck;
     let mut client = Async::<TcpStream>::connect(HAL_INCOMING).await?;
     client.write_all(&message.len().to_be_bytes()).await?;
     client.write_all(&[message.kind() as u8]).await?;
@@ -273,7 +348,21 @@ pub async fn send(message: OutgoingMessage) -> Result {
                 .await?;
             client.write_all(&image.buffer).await?;
         }
+        OutgoingMessage::MlTarget(targets, size) => {
+            client.write_all(&[targets.len() as u8]).await?;
+            client.write_all(&size.x.to_be_bytes()).await?;
+            client.write_all(&size.y.to_be_bytes()).await?;
+            for target in targets {
+                client.write_all(&[target.kind as u8]).await?;
+                client.write_all(&target.left.to_be_bytes()).await?;
+                client.write_all(&target.top.to_be_bytes()).await?;
+                client.write_all(&target.right.to_be_bytes()).await?;
+                client.write_all(&target.bottom.to_be_bytes()).await?;
+            }
+        }
     }
     client.flush().await?;
+    forget(cancel);
+    MESSAGES_FINISHED.fetch_add(1, Ordering::Relaxed);
     Ok(())
 }

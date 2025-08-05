@@ -4731,6 +4731,7 @@ dependencies = [
 name = "subsimgpt2"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "async-io",
  "avian3d",
  "bevy",
@@ -4740,6 +4741,7 @@ dependencies = [
  "futures-lite",
  "image",
  "rand",
+ "smallvec",
 ]
 
 [[package]]

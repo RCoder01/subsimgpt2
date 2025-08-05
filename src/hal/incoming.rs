@@ -1,11 +1,8 @@
 use bevy::prelude::*;
 
-use crate::sim::{
-    BottomCamera, ZedCamera,
-    sub::thruster::{ThrusterOf, ThrusterTarget},
-};
+use crate::sim::sub::thruster::{ThrusterOf, ThrusterTarget};
 
-use super::net::IncomingMessage;
+use super::{BottomCamera, CameraEnabled, ZedCamera, net::IncomingMessage};
 
 pub fn handle_thrusters(
     mut incoming: EventReader<IncomingMessage>,
@@ -21,7 +18,7 @@ pub fn handle_thrusters(
     if let Some(powers) = powers {
         for (mut target, info) in thrusters {
             if (info.id as usize) < powers.len() {
-                target.target_speed = powers[info.id as usize];
+                target.target_output = powers[info.id as usize];
             }
         }
     }
@@ -29,8 +26,8 @@ pub fn handle_thrusters(
 
 pub fn handle_cameras(
     mut incoming: EventReader<IncomingMessage>,
-    bottom_cameras: Query<&mut Camera, (With<BottomCamera>, Without<ZedCamera>)>,
-    zed_cameras: Query<&mut Camera, (With<ZedCamera>, Without<BottomCamera>)>,
+    bottom_cameras: Query<&mut CameraEnabled, (With<BottomCamera>, Without<ZedCamera>)>,
+    zed_cameras: Query<&mut CameraEnabled, (With<ZedCamera>, Without<BottomCamera>)>,
 ) -> Result {
     let mut bot_cam_on = None;
     let mut zed_cam_on = None;
@@ -48,13 +45,13 @@ pub fn handle_cameras(
     if let Some(new_active) = bot_cam_on {
         for mut cam in bottom_cameras {
             info!("Setting botcam to {new_active}");
-            cam.is_active = *new_active;
+            cam.0 = *new_active;
         }
     }
     if let Some(new_active) = zed_cam_on {
         for mut cam in zed_cameras {
             info!("Setting zed to {new_active}");
-            cam.is_active = *new_active;
+            cam.0 = *new_active;
         }
     }
     Ok(())
