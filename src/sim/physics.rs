@@ -1,4 +1,8 @@
-use avian3d::prelude::{ComputedCenterOfMass, ComputedMass, ExternalForce, Gravity, PhysicsSet};
+use arrayvec::ArrayVec;
+use avian3d::prelude::{
+    ComputedCenterOfMass, ComputedMass, ExternalForce, Gravity, LinearDamping, LinearVelocity,
+    PhysicsSet,
+};
 use bevy::prelude::*;
 use rand::{SeedableRng as _, rngs::StdRng};
 
@@ -19,13 +23,19 @@ impl Plugin for SubPhysicsPlugin {
                 }
             },
         )
-        .add_systems(FixedUpdate, buoyancy.in_set(SubPhysicsSet))
+        .add_systems(
+            FixedUpdate,
+            (buoyancy, linear_damping).in_set(SubPhysicsSet),
+        )
         .configure_sets(FixedUpdate, SubPhysicsSet.before(PhysicsSet::Prepare))
         .init_resource::<BuoyancySamples>()
-        .register_type::<SubPhysicsSet>()
-        .register_type::<WaterCollider>()
-        .register_type::<SubBuoyancy>()
-        .register_type::<BuoyancySamples>();
+        .register_type::<(
+            SubPhysicsSet,
+            WaterCollider,
+            SubBuoyancy,
+            BuoyancySamples,
+            WaterResistance,
+        )>();
     }
 }
 
@@ -130,6 +140,125 @@ fn buoyancy(
             });
 
         gizmos.arrow(global_com, transform.translation(), Srgba::BLUE);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Component, Reflect, Clone)]
+#[reflect(Component, Debug)]
+#[require(LinearDamping)]
+pub struct WaterResistance {
+    pub factor: f32,
+    pub cuboid: Cuboid,
+}
+
+fn projected_area(triangle: Triangle3d, target_normal: Vec3) -> f32 {
+    Triangle3d {
+        vertices: triangle
+            .vertices
+            .map(|p| p.reject_from_normalized(target_normal)),
+    }
+    .area()
+}
+
+// Find the point along the ray from start to end that intersects the y=0 plane
+fn find_intersect(start: Vec3, end: Vec3) -> Result<Vec3> {
+    let ray = Ray3d::new(start, Dir3::new(end - start)?);
+    let intersect = ray
+        .intersect_plane(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))
+        .ok_or("Ray doesn't intersect y=0")?;
+    Ok(ray.get_point(intersect))
+}
+
+/// Trims/splits the triangle so that all vertices are at or below y=0
+/// Produces 0, 1, or 2 subtriangles
+fn trim_triangle(triangle: Triangle3d) -> Result<ArrayVec<Triangle3d, 2>> {
+    let mut trims = ArrayVec::<Triangle3d, 2>::new_const();
+    let pred = |p: &Vec3| p.y <= 0.0;
+    let below_zero_count = triangle.vertices.iter().copied().filter(pred).count();
+    match below_zero_count {
+        0 => {}
+        1 => {
+            let below_index = triangle
+                .vertices
+                .iter()
+                .position(pred)
+                .ok_or("below_zero_count > 0")?;
+            let prev_index = (below_index + 3 - 1) % 3;
+            let next_index = (below_index + 1) % 3;
+            let mut trimmed = triangle;
+            trimmed.vertices[prev_index] = find_intersect(
+                triangle.vertices[below_index],
+                triangle.vertices[prev_index],
+            )?;
+            trimmed.vertices[next_index] = find_intersect(
+                triangle.vertices[below_index],
+                triangle.vertices[next_index],
+            )?;
+            trims.push(trimmed);
+        }
+        2 => {
+            let above_index = triangle
+                .vertices
+                .iter()
+                .position(|p| !pred(p))
+                .expect("3 - below_zero_count > 0");
+            let prev_index = (above_index + 3 - 1) % 3;
+            let next_index = (above_index + 1) % 3;
+            let prev_corner = triangle.vertices[prev_index];
+            let new_prev_corner = find_intersect(triangle.vertices[above_index], prev_corner)?;
+            let next_corner = triangle.vertices[next_index];
+            let new_next_corner = find_intersect(triangle.vertices[above_index], next_corner)?;
+            trims.push(Triangle3d {
+                vertices: [prev_corner, new_prev_corner, new_next_corner],
+            });
+            trims.push(Triangle3d {
+                vertices: [prev_corner, new_next_corner, next_corner],
+            });
+        }
+        3 => {
+            trims.push(triangle);
+        }
+        _ => unreachable!(),
+    }
+    Ok(trims)
+}
+
+/// Assumes water level is y = 0
+// projects the cuboid mesh into the velocity direction and calculates the area
+fn linear_damping(
+    subs: Query<(
+        &GlobalTransform,
+        &WaterResistance,
+        &LinearVelocity,
+        &mut LinearDamping,
+    )>,
+) -> Result<()> {
+    for (transform, resistance, velocity, mut damping) in subs {
+        let Some(vel_dir) = velocity.try_normalize() else {
+            continue;
+        };
+        let mut total_area = 0.0;
+        // resistance could be any other convex mesh, not just cuboids
+        for triangle in resistance
+            .cuboid
+            .mesh()
+            .build()
+            .triangles()
+            .expect("Cuboid-built mesh should be ok")
+        {
+            // So that we don't double count the surface area
+            if !triangle.normal().is_ok_and(|dir| dir.dot(vel_dir) > 0.0) {
+                continue;
+            }
+            let transformed_triangle = Triangle3d {
+                vertices: triangle.vertices.map(|p| transform.transform_point(p)),
+            };
+            for sub_tri in trim_triangle(transformed_triangle)? {
+                total_area += projected_area(sub_tri, vel_dir);
+            }
+        }
+        damping.0 = resistance.factor * total_area;
     }
     Ok(())
 }

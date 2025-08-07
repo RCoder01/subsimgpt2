@@ -1,6 +1,10 @@
 pub mod thruster;
 
+use std::f32::consts::{FRAC_PI_2, PI};
+
+use avian3d::prelude::{AngularVelocity, LinearVelocity};
 use bevy::prelude::*;
+use rand::{Rng as _, thread_rng};
 use thruster::{
     ThrusterForce, ThrusterOf, ThrusterParams, ThrusterState, ThrusterTarget, Thrusters,
     debug_thruster_states, thruster_physics, update_thruster_forces, update_thruster_states,
@@ -35,7 +39,7 @@ impl Plugin for SubPlugin {
         )
         .add_systems(
             Update,
-            set_teleop_state.run_if(in_state(ControlState::Unfocused)),
+            (set_teleop_state, reset_sub, coin_flip_sub).run_if(in_state(ControlState::Unfocused)),
         )
         .add_systems(Update, sub_controls.run_if(in_state(TeleopState::Teleop)))
         .add_sub_state::<TeleopState>()
@@ -143,5 +147,34 @@ fn sub_controls(
     //     }
     //     target.target_speed *= scale;
     // }
+    Ok(())
+}
+
+pub fn reset_sub(
+    mut sub: Query<(&mut Transform, &mut LinearVelocity, &mut AngularVelocity), With<SubControls>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) -> Result<()> {
+    if keyboard_input.just_pressed(KeyCode::KeyR) {
+        let (mut transform, mut vel, mut ang_vel) = sub.single_mut()?;
+        *transform = Transform::from_xyz(1., -0.2, 0.);
+        *vel = default();
+        *ang_vel = default();
+    }
+    Ok(())
+}
+
+pub fn coin_flip_sub(
+    mut sub: Query<(&mut Transform, &mut LinearVelocity, &mut AngularVelocity), With<SubControls>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) -> Result<()> {
+    if keyboard_input.just_pressed(KeyCode::KeyC) {
+        let (mut transform, mut vel, mut ang_vel) = sub.single_mut()?;
+        let mut rand = thread_rng();
+        let coin_flip: bool = rand.r#gen();
+        let angle = if coin_flip { -FRAC_PI_2 } else { -PI };
+        *transform = Transform::from_xyz(1., -0.2, 0.).with_rotation(Quat::from_rotation_y(angle));
+        *vel = default();
+        *ang_vel = default();
+    }
     Ok(())
 }

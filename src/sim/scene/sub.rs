@@ -15,9 +15,12 @@ use bevy::{
 
 use crate::{
     frustum_gizmo::ShowFrustumGizmo,
-    hal::{CameraEnabled, ImageExportSource, MLTargets, Sensors, ZedCamera, ZedImage},
+    hal::{
+        BotCamImage, BottomCamera, CameraEnabled, CameraTimer, ImageExportSource, MLTargets,
+        Sensors, ZedCamera, ZedImage,
+    },
     sim::{
-        physics::SubBuoyancy,
+        physics::{BuoyancySamples, SubBuoyancy, WaterResistance},
         sub::{
             SubControls,
             thruster::{ThrusterOf, ThrusterTarget, Thrusters},
@@ -41,6 +44,7 @@ pub fn spawn_sub(
     images: &mut Assets<Image>,
     export_sources: &mut Assets<ImageExportSource>,
 ) -> SubEntity {
+    commands.insert_resource(BuoyancySamples::new(1000));
     let sub_material = materials.add(StandardMaterial {
         base_color: Srgba::GREEN.into(),
         ..default()
@@ -51,14 +55,20 @@ pub fn spawn_sub(
         .spawn((
             Mesh3d(meshes.add(sub_cuboid)),
             MeshMaterial3d(sub_material),
-            Transform::from_translation(Vec3::new(0., -1., 0.)),
+            Transform::from_translation(Vec3::new(1., -1., 0.)),
             Name::new("Sub"),
             SubControls::new(0.2),
             Collider::from(sub_cuboid),
             RigidBody::Dynamic,
             SubBuoyancy::new(sub_cuboid, 1.01),
             // TODO: Make this vary based on % underwater
-            (LinearDamping(1.0), AngularDamping(1.0)),
+            (
+                WaterResistance {
+                    factor: 5.0,
+                    cuboid: sub_cuboid,
+                },
+                AngularDamping(0.6),
+            ),
             //
             ExternalForce::ZERO.with_persistence(false),
             CenterOfMass(com),
@@ -70,6 +80,7 @@ pub fn spawn_sub(
         ))
         .id();
     let ZedCamEntity { left } = spawn_zed(commands, sub_entity, images, export_sources);
+    spawn_botcam(commands, sub_entity, images, export_sources);
 
     let thruster_material = materials.add(StandardMaterial {
         base_color: Srgba::BLACK.into(),
@@ -153,13 +164,56 @@ fn spawn_zed(
                 .with_rotation(Quat::from_axis_angle(Vec3::Y, -FRAC_PI_2)),
             ShowFrustumGizmo::default(),
             ZedCamera::default(),
-            CameraEnabled(true),
+            CameraEnabled(false),
             ChildOf(sub),
             MLTargets::default(),
             Name::new("Left Zed cam"),
         ))
         .id();
     ZedCamEntity { left }
+}
+
+fn spawn_botcam(
+    commands: &mut Commands,
+    sub: Entity,
+    images: &mut Assets<Image>,
+    export_sources: &mut Assets<ImageExportSource>,
+) -> Entity {
+    let mut image = Image::new_fill(
+        render_resource::Extent3d {
+            width: 960,
+            height: 540,
+            ..default()
+        },
+        TextureDimension::D2,
+        &[0, 255, 0, 255],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    image.texture_descriptor.label = Some("Bot cam image target");
+    image.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC;
+    let target = images.add(image);
+    commands.insert_resource(BotCamImage(export_sources.add(target.clone())));
+    commands
+        .spawn((
+            Camera3d::default(),
+            Camera {
+                target: RenderTarget::Image(target.into()),
+                ..default()
+            },
+            Projection::Perspective(PerspectiveProjection {
+                fov: 140.0,
+                ..default()
+            }),
+            Transform::from_translation(Vec3::new(0., -0.01, 0.))
+                .with_rotation(Quat::from_axis_angle(Vec3::X, -FRAC_PI_2)),
+            ShowFrustumGizmo::default(),
+            BottomCamera::default(),
+            CameraEnabled(false),
+            ChildOf(sub),
+            Name::new("Bottom camera"),
+        ))
+        .id()
 }
 
 struct ThrusterDescriptor {

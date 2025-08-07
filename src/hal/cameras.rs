@@ -66,7 +66,7 @@ pub struct ZedCamera;
 
 pub const ZED_FRAME_RATE: f32 = 20.0;
 
-#[derive(Debug, Clone, Component, Reflect, ExtractComponent)]
+#[derive(Debug, Default, Clone, Component, Reflect, ExtractComponent)]
 #[reflect(Component, Debug)]
 #[require(CameraTimer::from_rate(BOT_CAM_FRAME_RATE), CameraEnabled)]
 pub struct BottomCamera;

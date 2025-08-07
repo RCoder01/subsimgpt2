@@ -325,8 +325,8 @@ impl Drop for CancelCheck {
 
 pub async fn send(message: OutgoingMessage) -> Result {
     MESSAGES_STARTED.fetch_add(1, Ordering::Relaxed);
-    let cancel = CancelCheck;
     let mut client = Async::<TcpStream>::connect(HAL_INCOMING).await?;
+    let cancel = CancelCheck;
     client.write_all(&message.len().to_be_bytes()).await?;
     client.write_all(&[message.kind() as u8]).await?;
     match message {

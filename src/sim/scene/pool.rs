@@ -1,13 +1,13 @@
 use avian3d::prelude::{Collider, RigidBody};
 use bevy::{pbr::NotShadowCaster, prelude::*};
 
-pub fn spawn_pool(
+pub fn pool_bundle(
+    transform: Transform,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    commands: &mut Commands,
     outer_half_size: Vec3,
     inner_half_size: Vec3,
-) -> Entity {
+) -> impl Bundle {
     let o = outer_half_size;
     let i = inner_half_size;
     let a1 = Vec3::new(o[0], -o[1], -i[2]);
@@ -34,18 +34,16 @@ pub fn spawn_pool(
             Name::new(name),
         )
     };
-    commands
-        .spawn((
-            Name::new("Pool"),
-            Transform::from_translation(Vec3::new(0., -i.y, 0.)),
-            Visibility::default(),
-            children![
-                wall(a1, a2, "Wall0"),
-                wall(b1, b2, "Wall1"),
-                wall(c1, c2, "Wall2"),
-                wall(d1, d2, "Wall3"),
-                wall(f1, f2, "Floor"),
-            ],
-        ))
-        .id()
+    (
+        Name::new("Pool"),
+        transform * Transform::from_translation(Vec3::new(0., -i.y, 0.)),
+        Visibility::default(),
+        children![
+            wall(a1, a2, "Wall0"),
+            wall(b1, b2, "Wall1"),
+            wall(c1, c2, "Wall2"),
+            wall(d1, d2, "Wall3"),
+            wall(f1, f2, "Floor"),
+        ],
+    )
 }

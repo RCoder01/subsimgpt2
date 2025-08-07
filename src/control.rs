@@ -1,5 +1,8 @@
 use bevy::{
-    input::mouse::{MouseMotion, MouseWheel},
+    input::{
+        keyboard::KeyboardInput,
+        mouse::{MouseMotion, MouseWheel},
+    },
     math::DVec2,
     prelude::*,
     window::{CursorGrabMode, PrimaryWindow},
@@ -143,13 +146,24 @@ fn keyboard_input(
     }
 }
 
-fn camera_speed(mut speed: ResMut<MovementScale>, mut scroll_event: EventReader<MouseWheel>) {
+fn camera_speed(
+    mut speed: ResMut<MovementScale>,
+    mut scroll_event: EventReader<MouseWheel>,
+    mut key_event: EventReader<KeyboardInput>,
+) {
     for event in scroll_event.read() {
         if event.y >= 1. {
             speed.0 *= 1.5;
         }
         if event.y <= -1. {
             speed.0 /= 1.5;
+        }
+    }
+    for event in key_event.read() {
+        match event.key_code {
+            KeyCode::ArrowUp => speed.0 *= 1.5,
+            KeyCode::ArrowDown => speed.0 /= 1.5,
+            _ => {}
         }
     }
 }
