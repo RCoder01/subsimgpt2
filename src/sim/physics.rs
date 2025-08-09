@@ -254,7 +254,14 @@ fn linear_damping(
             let transformed_triangle = Triangle3d {
                 vertices: triangle.vertices.map(|p| transform.transform_point(p)),
             };
-            for sub_tri in trim_triangle(transformed_triangle)? {
+            let trimmed = match trim_triangle(transformed_triangle) {
+                Ok(trimmed) => trimmed,
+                Err(e) => {
+                    warn!("{e}");
+                    continue;
+                }
+            };
+            for sub_tri in trimmed {
                 total_area += projected_area(sub_tri, vel_dir);
             }
         }

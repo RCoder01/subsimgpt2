@@ -42,7 +42,7 @@ pub struct MLTargetSizeThreshold(Vec2);
 
 impl Default for MLTargetSizeThreshold {
     fn default() -> Self {
-        Self(Vec2::splat(50.))
+        Self(Vec2::splat(30.))
     }
 }
 
@@ -74,6 +74,9 @@ pub fn send_ml_targets(
             }
             min = min.clamp(logical_rect.min, logical_rect.max);
             max = max.clamp(logical_rect.min, logical_rect.max);
+            if min.x > max.x || min.y > max.y {
+                continue;
+            }
             let aabb = Rect::from_corners(min, max);
             if aabb.width() < size_threshold.0.x || aabb.height() < size_threshold.0.y {
                 continue;

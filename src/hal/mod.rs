@@ -65,7 +65,7 @@ fn send_sensors(sub: Query<(&Dvl, &Imu, &DepthSensor), With<RigidBody>>) -> Resu
             velocity_c: dvl.velocity.z,
         },
         imu_ins: ImuINS {
-            theta: [roll, pitch, -yaw], // TODO: Is this the correct order (and EulerRot)? (yes?)
+            theta: [roll, pitch, yaw], // TODO: Is this the correct order (and EulerRot)? (yes?)
         },
         imu_pimu: ImuPIMU {
             dtheta: (angular_velocity / dt).to_array(),

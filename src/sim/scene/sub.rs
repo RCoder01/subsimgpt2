@@ -57,7 +57,7 @@ pub fn spawn_sub(
             MeshMaterial3d(sub_material),
             Transform::from_translation(Vec3::new(1., -1., 0.)),
             Name::new("Sub"),
-            SubControls::new(0.2),
+            SubControls::new(0.4),
             Collider::from(sub_cuboid),
             RigidBody::Dynamic,
             SubBuoyancy::new(sub_cuboid, 1.01),
@@ -205,8 +205,9 @@ fn spawn_botcam(
                 fov: 140.0,
                 ..default()
             }),
-            Transform::from_translation(Vec3::new(0., -0.01, 0.))
-                .with_rotation(Quat::from_axis_angle(Vec3::X, -FRAC_PI_2)),
+            Transform::from_translation(Vec3::new(0., -0.01, 0.)).with_rotation(
+                Quat::from_rotation_y(-FRAC_PI_2) * Quat::from_rotation_x(-FRAC_PI_2),
+            ),
             ShowFrustumGizmo::default(),
             BottomCamera::default(),
             CameraEnabled(false),

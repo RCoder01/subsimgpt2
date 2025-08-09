@@ -231,7 +231,7 @@ fn gate(
                     shape: image_cube,
                     kind: MLTargetKind::GateBlue,
                 },
-                Name::new("Left image")
+                Name::new("Right image")
             ),
         ],
     )

@@ -25,8 +25,12 @@ impl Plugin for SubPlugin {
                 update_thruster_states,
                 update_thruster_forces.after(update_thruster_states),
                 debug_thruster_states.after(update_thruster_forces),
-                thruster_physics.after(update_thruster_forces),
-            )
+            ),
+        )
+        .add_systems(
+            FixedUpdate,
+            thruster_physics
+                .after(update_thruster_forces)
                 .in_set(SubPhysicsSet),
         )
         .add_systems(
