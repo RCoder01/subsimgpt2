@@ -12,7 +12,9 @@ use avian3d::{
 use bevy::{prelude::*, tasks::IoTaskPool};
 use cameras::update_cam_enabled;
 pub use image_export::{BotCamImage, ImageExportSource, ZedImage};
-use incoming::{handle_cameras, handle_thrusters};
+use incoming::{
+    debug_localization, handle_cameras, handle_thrusters, update_localization_estimate,
+};
 use net::{Dvl as DvlMessage, ImuINS, ImuPIMU, OutgoingMessage, SensorMessage, send};
 use sensors::{postupdate_sensors, update_previous_velocities};
 
@@ -32,11 +34,18 @@ impl Plugin for HalPlugin {
             net::NetPlugin,
             cameras::CameraPlugin,
         ))
-        .add_systems(Update, (handle_thrusters, handle_cameras))
+        .add_systems(
+            Update,
+            (
+                handle_thrusters,
+                handle_cameras,
+                (update_localization_estimate, debug_localization).chain(),
+            ),
+        )
         .add_systems(
             FixedUpdate,
             (
-                update_previous_velocities.before(PrepareSet::InitTransforms),
+                update_previous_velocities.before(PhysicsSet::Prepare),
                 postupdate_sensors.after(PhysicsSet::Sync),
                 send_sensors,
             )

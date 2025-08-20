@@ -1,6 +1,13 @@
+use avian3d::prelude::{
+    Collider, ColliderOf, ColliderTransform, LinearVelocity, PhysicsGizmoExt, PhysicsGizmos,
+    RigidBodyColliders,
+};
 use bevy::prelude::*;
 
-use crate::sim::sub::thruster::{ThrusterOf, ThrusterTarget};
+use crate::sim::sub::{
+    SubControls,
+    thruster::{ThrusterOf, ThrusterTarget},
+};
 
 use super::{BottomCamera, CameraEnabled, ZedCamera, net::IncomingMessage};
 
@@ -54,5 +61,84 @@ pub fn handle_cameras(
             cam.0 = *new_active;
         }
     }
+    Ok(())
+}
+
+#[derive(Debug, Component)]
+pub struct LocalizationEstimate;
+
+pub fn update_localization_estimate(
+    mut incoming: EventReader<IncomingMessage>,
+    mut estimate: Query<(&mut Transform, &mut LinearVelocity), With<LocalizationEstimate>>,
+    mut commands: Commands,
+) {
+    let transforms = incoming.read().filter_map(|m| {
+        let IncomingMessage::LocalizationEstimate {
+            rotation,
+            position,
+            velocity,
+        } = m
+        else {
+            return None;
+        };
+        let change_of_coordinates = Mat3::from_cols_array(&[1., 0., 0., 0., 0., 1., 0., -1., 0.]);
+        let translation = change_of_coordinates * *position;
+        let rotation = Quat::from_mat3(rotation);
+        Some((
+            Transform {
+                translation,
+                rotation,
+                scale: Vec3::ONE,
+            },
+            change_of_coordinates * *velocity,
+        ))
+    });
+    let Some((new_transform, new_vel)) = transforms.last() else {
+        return;
+    };
+    if let Ok((mut transform, mut velocity)) = estimate.single_mut() {
+        *transform = new_transform;
+        velocity.0 = new_vel;
+        return;
+    }
+    commands.spawn((
+        LocalizationEstimate,
+        new_transform,
+        LinearVelocity(new_vel),
+        Name::new("Localization estimate"),
+    ));
+}
+
+pub fn debug_localization(
+    estimate: Query<(&Transform, &LinearVelocity), With<LocalizationEstimate>>,
+    mut gizmos: Gizmos<PhysicsGizmos>,
+    sub: Query<&RigidBodyColliders, With<SubControls>>,
+    colliders: Query<(&Collider, &ColliderTransform), With<ColliderOf>>,
+) -> Result<()> {
+    let Ok((estimate_transform, estimate_vel)) = estimate.single() else {
+        return Ok(());
+    };
+    let Ok(sub_colliders) = sub.single() else {
+        return Ok(());
+    };
+
+    const COLOR: Color = Color::srgba(1.0, 0.5, 0.0, 1.0);
+    gizmos.arrow(
+        estimate_transform.translation,
+        estimate_transform.translation + estimate_vel.0,
+        COLOR,
+    );
+
+    for entity in sub_colliders.iter() {
+        let (collider, relative) = colliders.get(entity)?;
+        let relative_transform = Transform {
+            translation: relative.translation,
+            rotation: relative.rotation.0,
+            scale: Vec3::ONE,
+        };
+        let transform = *estimate_transform * relative_transform;
+        gizmos.draw_collider(collider, transform.translation, transform.rotation, COLOR);
+    }
+
     Ok(())
 }

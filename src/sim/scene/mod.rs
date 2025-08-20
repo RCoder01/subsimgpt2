@@ -54,8 +54,8 @@ pub fn startup_spawner(
     let pool_pos = Transform::from_translation(Vec3::new(inner_half_size.x, 0., 0.));
     let pool = pool_bundle(
         pool_pos,
-        &mut *meshes,
-        &mut *materials,
+        &mut meshes,
+        &mut materials,
         outer_half_size,
         inner_half_size,
     );
@@ -77,11 +77,11 @@ pub fn startup_spawner(
 
     // Sub
     let SubEntity { sub, zed_left } = spawn_sub(
-        &mut *meshes,
-        &mut *materials,
+        &mut meshes,
+        &mut materials,
         &mut commands,
-        &mut *images,
-        &mut *export_sources,
+        &mut images,
+        &mut export_sources,
     );
 
     // Light
@@ -333,6 +333,40 @@ fn pathmarker(
                 Mesh3d(circle_mesh),
                 Collider::from(circle),
             )
+        ],
+    )
+}
+
+fn bin(
+    transform: Transform,
+    materials: &mut Assets<StandardMaterial>,
+    meshes: &mut Assets<Mesh>,
+) -> impl Bundle {
+    let white = materials.add(Color::srgb(0.9, 0.9, 0.9));
+    let front = Cuboid::from_size(inches3(Vec3::new(6.0, 0.25, 24.0)));
+    let front_mesh = meshes.add(front);
+    let side = Cuboid::from_size(inches3(Vec3::new(24.0, 0.25, 6.0)));
+    let side_mesh = meshes.add(side);
+    let vertical_front = Cuboid::from_size(inches3(Vec3::new(0.25, 6.0, 12.0)));
+    let vertical_front_mesh = meshes.add(vertical_front);
+    let vertical_side = Cuboid::from_size(inches3(Vec3::new(24.0, 6.0, 0.25)));
+    let vertical_side_mesh = meshes.add(vertical_side);
+    let bottom = Cuboid::from_size(inches3(Vec3::new(24.0, 0.25, 12.0)));
+    let bottom_mesh = meshes.add(bottom);
+
+    (
+        transform,
+        Visibility::default(),
+        RigidBody::Static,
+        Name::new("bins"),
+        children![
+            (
+                Transform::from_translation(inches3(Vec3::new(18.0, 6.0, 0.0))),
+                MeshMaterial3d(white),
+                Mesh3d(front_mesh),
+                Collider::from(front),
+            ),
+            ()
         ],
     )
 }

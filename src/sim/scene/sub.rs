@@ -72,7 +72,7 @@ pub fn spawn_sub(
             //
             ExternalForce::ZERO.with_persistence(false),
             CenterOfMass(com),
-            Mass(20.),
+            Mass(25.),
             // TODO: What might the tensor's value be?
             AngularInertia::from(AngularInertiaTensor::default() / 0.2),
             Thrusters::default(),
@@ -202,7 +202,7 @@ fn spawn_botcam(
                 ..default()
             },
             Projection::Perspective(PerspectiveProjection {
-                fov: 140.0,
+                fov: 127.0,
                 ..default()
             }),
             Transform::from_translation(Vec3::new(0., -0.01, 0.)).with_rotation(

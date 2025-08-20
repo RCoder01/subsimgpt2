@@ -118,25 +118,19 @@ fn buoyancy(
             let underwater = water_cuboid.closest_point(water_local) == water_local;
             if underwater {
                 force.apply_force_at_point(force_per_sample, global_sample, global_com);
-                // gizmos.arrow(
-                //     global_sample,
-                //     global_sample + force_per_sample * 0.1,
-                //     Srgba::GREEN,
-                // );
-            } else {
-                // gizmos.arrow(
-                //     global_sample,
-                //     global_sample + force_per_sample * 0.1,
-                //     Srgba::RED,
-                // );
             }
+            // gizmos.arrow(
+            //     global_sample,
+            //     global_sample + force_per_sample * 0.1,
+            //     if underwater { Srgba::GREEN } else { Srgba::RED },
+            // );
         }
         commands
             .entity(entity)
             .entry::<ExternalForce>()
             .or_default()
             .and_modify(move |mut ef| {
-                *ef = add_forces(&*ef, &force, false);
+                *ef = add_forces(&ef, &force, false);
             });
 
         gizmos.arrow(global_com, transform.translation(), Srgba::BLUE);

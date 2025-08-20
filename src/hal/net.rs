@@ -133,6 +133,16 @@ async fn handle_connection(stream: &mut Async<TcpStream>) -> Result<Option<Incom
             stream.read_exact(std::array::from_mut(&mut data)).await?;
             IncomingMessage::ZedOn(data != 0)
         }
+        MessageKind::LocalizationEstimate => {
+            let mut data = [[0u8; 4]; 15];
+            stream.read_exact(data.as_flattened_mut()).await?;
+            let data = data.map(f32::from_be_bytes);
+            IncomingMessage::LocalizationEstimate {
+                rotation: Mat3::from_cols_slice(&data[..9]),
+                position: Vec3::from_slice(&data[9..12]),
+                velocity: Vec3::from_slice(&data[12..15]),
+            }
+        }
         _ => {
             return Err("Should not receive incoming sensors or images".into());
         }
@@ -149,6 +159,7 @@ pub enum MessageKind {
     Motors = 5,
     BotcamOn = 6,
     ZedOn = 7,
+    LocalizationEstimate = 8,
 }
 
 impl TryFrom<u8> for MessageKind {
@@ -163,6 +174,7 @@ impl TryFrom<u8> for MessageKind {
             5 => Ok(Self::Motors),
             6 => Ok(Self::BotcamOn),
             7 => Ok(Self::ZedOn),
+            8 => Ok(Self::LocalizationEstimate),
             _ => Err("Invalid message kind".into()),
         }
     }
@@ -297,13 +309,13 @@ impl OutgoingMessage {
     }
 }
 
-impl Into<MessageKind> for &OutgoingMessage {
-    fn into(self) -> MessageKind {
-        match self {
-            OutgoingMessage::Sensors(..) => MessageKind::Sensors,
-            OutgoingMessage::BotcamImage(..) => MessageKind::BotcamImage,
-            OutgoingMessage::ZedImage(..) => MessageKind::ZedImage,
-            OutgoingMessage::MlTarget(..) => MessageKind::MlTarget,
+impl From<&OutgoingMessage> for MessageKind {
+    fn from(v: &OutgoingMessage) -> Self {
+        match v {
+            OutgoingMessage::Sensors(..) => Self::Sensors,
+            OutgoingMessage::BotcamImage(..) => Self::BotcamImage,
+            OutgoingMessage::ZedImage(..) => Self::ZedImage,
+            OutgoingMessage::MlTarget(..) => Self::MlTarget,
         }
     }
 }
@@ -313,6 +325,11 @@ pub enum IncomingMessage {
     Motors([f32; 8]),
     BotcamOn(bool),
     ZedOn(bool),
+    LocalizationEstimate {
+        rotation: Mat3,
+        position: Vec3,
+        velocity: Vec3,
+    },
 }
 
 struct CancelCheck;
