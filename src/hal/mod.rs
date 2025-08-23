@@ -43,7 +43,7 @@ impl Plugin for HalPlugin {
             ),
         )
         .add_systems(
-            FixedUpdate,
+            FixedPostUpdate,
             (
                 update_previous_velocities.before(PhysicsSet::Prepare),
                 postupdate_sensors.after(PhysicsSet::Sync),

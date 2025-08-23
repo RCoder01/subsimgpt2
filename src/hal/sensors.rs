@@ -65,9 +65,6 @@ pub fn postupdate_sensors(
         dvl.velocity = vel.0;
     }
     for (vel, prev_vel, ang_vel, rot, mut imu) in imus.iter_mut() {
-        info!("{:.10}", vel.0);
-        info!("{:.10}", prev_vel.0);
-        info!("{:.10}", vel.0 - prev_vel.0);
         let dt = time.delta_secs();
         *imu = Imu {
             angle: rot.0,
