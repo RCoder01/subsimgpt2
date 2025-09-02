@@ -53,7 +53,7 @@ jobs:
           hdiutil create -fs HFS+ -volname "${{ inputs.binary }}" -srcfolder ${{ inputs.binary }}.app ${{ steps.set_paths.outputs.file_name  }}.dmg
 
       - name: Upload binaries to artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.platform }}
           path: ${{ steps.set_paths.outputs.file_name  }}.dmg
@@ -94,7 +94,7 @@ jobs:
           hdiutil create -fs HFS+ -volname "${{ inputs.binary }}" -srcfolder ${{ inputs.binary }}.app ${{ steps.set_paths.outputs.file_name  }}.dmg
 
       - name: Upload binaries to artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.platform }}
           path: ${{ steps.set_paths.outputs.file_name  }}.dmg
