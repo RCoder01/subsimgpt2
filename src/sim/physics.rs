@@ -227,7 +227,7 @@ fn linear_damping(
         &LinearVelocity,
         &mut LinearDamping,
     )>,
-) -> Result<()> {
+) -> Result {
     for (transform, resistance, velocity, mut damping) in subs {
         let Some(vel_dir) = velocity.try_normalize() else {
             continue;

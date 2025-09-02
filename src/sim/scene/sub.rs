@@ -16,8 +16,8 @@ use bevy::{
 use crate::{
     frustum_gizmo::ShowFrustumGizmo,
     hal::{
-        BotCamImage, BottomCamera, CameraEnabled, CameraTimer, ImageExportSource, MLTargets,
-        Sensors, ZedCamera, ZedImage,
+        BotCamImage, BottomCamera, CameraEnabled, CameraTimer, DepthSensor, Dvl, ImageExportSource,
+        Imu, MLTargets, ZedCamera, ZedImage,
     },
     sim::{
         physics::{BuoyancySamples, SubBuoyancy, WaterResistance},
@@ -76,7 +76,25 @@ pub fn spawn_sub(
             // TODO: What might the tensor's value be?
             AngularInertia::from(AngularInertiaTensor::default() / 0.2),
             Thrusters::default(),
-            Sensors::default(),
+            children![
+                (
+                    Imu::default(),
+                    Transform::from_rotation(Quat::from_euler(
+                        EulerRot::ZYX,
+                        0.0,
+                        -FRAC_PI_2,
+                        -FRAC_PI_2
+                    ))
+                    .with_translation(Vec3::new(-0.15, 0., -0.05)),
+                    Name::new("IMU"),
+                ),
+                (Dvl::default(), Transform::default(), Name::new("DVL")),
+                (
+                    DepthSensor::default(),
+                    Transform::default(),
+                    Name::new("Depth Sensor")
+                ),
+            ],
         ))
         .id();
     let ZedCamEntity { left } = spawn_zed(commands, sub_entity, images, export_sources);

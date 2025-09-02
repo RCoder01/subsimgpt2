@@ -114,7 +114,7 @@ pub fn debug_localization(
     mut gizmos: Gizmos<PhysicsGizmos>,
     sub: Query<&RigidBodyColliders, With<SubControls>>,
     colliders: Query<(&Collider, &ColliderTransform), With<ColliderOf>>,
-) -> Result<()> {
+) -> Result {
     let Ok((estimate_transform, estimate_vel)) = estimate.single() else {
         return Ok(());
     };

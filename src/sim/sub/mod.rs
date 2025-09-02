@@ -157,7 +157,7 @@ fn sub_controls(
 pub fn reset_sub(
     mut sub: Query<(&mut Transform, &mut LinearVelocity, &mut AngularVelocity), With<SubControls>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-) -> Result<()> {
+) -> Result {
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         let (mut transform, mut vel, mut ang_vel) = sub.single_mut()?;
         *transform = Transform::from_xyz(1., -0.2, 0.);
@@ -170,7 +170,7 @@ pub fn reset_sub(
 pub fn coin_flip_sub(
     mut sub: Query<(&mut Transform, &mut LinearVelocity, &mut AngularVelocity), With<SubControls>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-) -> Result<()> {
+) -> Result {
     if keyboard_input.just_pressed(KeyCode::KeyC) {
         let (mut transform, mut vel, mut ang_vel) = sub.single_mut()?;
         let mut rand = thread_rng();

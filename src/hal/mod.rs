@@ -5,10 +5,7 @@ mod net;
 mod sensors;
 mod target;
 
-use avian3d::{
-    prelude::{PhysicsSet, RigidBody},
-    prepare::PrepareSet,
-};
+use avian3d::prelude::PhysicsSet;
 use bevy::{prelude::*, tasks::IoTaskPool};
 use cameras::update_cam_enabled;
 pub use image_export::{BotCamImage, ImageExportSource, ZedImage};
@@ -16,11 +13,11 @@ use incoming::{
     debug_localization, handle_cameras, handle_thrusters, update_localization_estimate,
 };
 use net::{Dvl as DvlMessage, ImuINS, ImuPIMU, OutgoingMessage, SensorMessage, send};
-use sensors::{postupdate_sensors, update_previous_velocities};
+use sensors::{postupdate_sensors, send_sensors, update_previous_velocities};
 
 pub use cameras::{BottomCamera, CameraEnabled, CameraTimer, ZedCamera};
 pub use net::MLTargetKind;
-pub use sensors::{DepthSensor, Dvl, Imu, Sensors};
+pub use sensors::{DepthSensor, Dvl, Imu};
 pub use target::{MLTargetOf, MLTargets};
 use target::{MLTargetSizeThreshold, send_ml_targets};
 
@@ -53,37 +50,13 @@ impl Plugin for HalPlugin {
         )
         .add_systems(PostUpdate, send_ml_targets.after(update_cam_enabled))
         .init_resource::<MLTargetSizeThreshold>()
-        .register_type::<(MLTargets, MLTargetOf, MLTargetSizeThreshold)>();
+        .register_type::<(
+            MLTargets,
+            MLTargetOf,
+            MLTargetSizeThreshold,
+            Imu,
+            Dvl,
+            DepthSensor,
+        )>();
     }
-}
-
-fn send_sensors(sub: Query<(&Dvl, &Imu, &DepthSensor), With<RigidBody>>) -> Result {
-    let (dvl, imu, depth) = sub.single()?;
-    let Imu {
-        angle,
-        angular_velocity,
-        dvel,
-        dt,
-    } = imu;
-    let (yaw, pitch, roll) = angle.to_euler(EulerRot::YZX);
-    let message = SensorMessage {
-        depth: depth.depth,
-        dvl: DvlMessage {
-            velocity_a: dvl.velocity.x,
-            velocity_b: dvl.velocity.y,
-            velocity_c: dvl.velocity.z,
-        },
-        imu_ins: ImuINS {
-            theta: [roll, pitch, yaw], // TODO: Is this the correct order (and EulerRot)? (yes?)
-        },
-        imu_pimu: ImuPIMU {
-            dtheta: (angular_velocity / dt).to_array(),
-            dvel: dvel.to_array(),
-            dt: *dt,
-        },
-    };
-    IoTaskPool::get()
-        .spawn(async move { send(OutgoingMessage::Sensors(message)).await })
-        .detach();
-    Ok(())
 }

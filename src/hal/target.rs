@@ -50,7 +50,7 @@ pub fn send_ml_targets(
     cameras: Query<(&Camera, &MLTargets, &GlobalTransform)>,
     targets: Query<(&MLTargetOf, &GlobalTransform)>,
     size_threshold: Res<MLTargetSizeThreshold>,
-) -> Result<()> {
+) -> Result {
     let task_pool = IoTaskPool::get();
     for (cam, cam_targets, cam_transform) in cameras {
         let logical_rect = cam
