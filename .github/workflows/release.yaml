@@ -6,14 +6,6 @@ env:
   # Check you Cargo.toml -> package -> name
   binary: ${{ github.event.repository.name }}
 
-  # Build platforms
-
-  # Valid platforms: "web, linux, windows, macos_intel, macos_apple_silicon"
-  # - Write "intel" and "apple" to abbreviate "macos_intel" and "macos_apple_silicon," respectively.
-  # - Write "macos" to build for both "intel" and "apple"
-  # - Write "web" or "wasm" to build for the web
-  build_for: ["linux", "windows", "macos"]
-
   # Releases
 
   # Valid platforms: "github_releases, itchio, github_pages"
@@ -54,15 +46,11 @@ jobs:
         uses: olegtarasov/get-tag@v2.1.2
 
     outputs:
-      run_build_web: ${{ ( inputs.tag &&  (contains(inputs.build_for, 'web') || contains(inputs.build_for, 'wasm')) ) || ( !inputs.tag && (contains(env.build_for, 'web') || contains(env.build_for, 'wasm')) ) }}
       run_build_linux: ${{ (inputs.tag && contains(inputs.build_for, 'linux')) || (!inputs.tag && contains(env.build_for, 'linux') ) }}
       run_build_windows: ${{ ( inputs.tag && contains(inputs.build_for, 'windows')) || (!inputs.tag && contains(env.build_for, 'windows') ) }}
       run_build_macos_intel:  ${{ ( inputs.tag && ( contains(inputs.build_for, 'intel') || contains(inputs.build_for, 'macos') )) || (!inputs.tag && (contains(env.build_for, 'intel') || contains(env.build_for, 'macos')) ) }}
       run_build_macos_apple_silicon: ${{ ( inputs.tag && ( contains(inputs.build_for, 'apple') || contains(inputs.build_for, 'macos') )) || (!inputs.tag && (contains(env.build_for, 'apple') || contains(env.build_for, 'macos')) ) }}
       run_publish_github_releases: ${{ ( inputs.tag && contains(inputs.publish_to, 'releases')) || (!inputs.tag && contains(env.publish_to, 'releases') ) }}
-      run_publish_itchio: ${{ ( inputs.tag && contains(inputs.publish_to, 'itchio')) || (!inputs.tag && contains(env.publish_to, 'itchio') ) }}
-      run_publish_github_pages: ${{ ( inputs.tag && contains(inputs.publish_to, 'pages')) || (!inputs.tag && contains(env.publish_to, 'pages') ) }}
-      itchio_target: ${{ inputs.itchio_target || env.itchio_target }}
       tag: ${{ ( inputs.tag || steps.get_version.outputs.tag ) }}
       binary: ${{ env.binary }}
 
