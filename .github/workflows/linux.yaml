@@ -39,9 +39,7 @@ jobs:
 
       - name: Prepare package
         run: |
-          mkdir linux
-          cp target/x86_64-unknown-linux-gnu/release/${{ inputs.binary }} linux/${{ steps.set_file_name.outputs.file_name }}
-          cp -r assets linux/
+          cp target/x86_64-unknown-linux-gnu/release/${{ inputs.binary }} ${{ steps.set_file_name.outputs.file_name }}
 
       - name: Upload binaries to artifacts
         uses: actions/upload-artifact@v4

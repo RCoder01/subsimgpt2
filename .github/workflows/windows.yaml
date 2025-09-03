@@ -37,8 +37,7 @@ jobs:
       - name: Prepare package
         shell: bash
         run: |
-          mkdir windows
-          cp target/x86_64-pc-windows-msvc/release/${{ inputs.binary }}.exe windows/${{ steps.set_file_name.outputs.file_name }}
+          cp target/x86_64-pc-windows-msvc/release/${{ inputs.binary }}.exe ${{ steps.set_file_name.outputs.file_name }}
 
       - name: Upload binaries to artifacts
         uses: actions/upload-artifact@v4
