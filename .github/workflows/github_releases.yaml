@@ -21,13 +21,13 @@ jobs:
       - uses: xSAVIKx/artifact-exists-action@v0
         id: check_artifact
         with:
-          name: ${{ inputs.artifact_name }}.zip
+          name: ${{ inputs.artifact_name }}
 
       - name: Download artifacts
         if: steps.check_artifact.outputs.exists == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: ${{ inputs.artifact_name }}.zip
+          name: ${{ inputs.artifact_name }}
           path: ./artifact
 
       - name: Get file

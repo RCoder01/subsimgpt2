@@ -50,6 +50,7 @@ jobs:
         run: |
           mkdir -p ${{ steps.set_paths.outputs.app_structure }}
           cp target/x86_64-apple-darwin/release/${{ inputs.binary }} ${{ steps.set_paths.outputs.app_structure }}
+          cp -r assets ${{ steps.set_paths.outputs.app_structure }}
           hdiutil create -fs HFS+ -volname "${{ inputs.binary }}" -srcfolder ${{ inputs.binary }}.app ${{ steps.set_paths.outputs.file_name  }}.dmg
 
       - name: Upload binaries to artifacts
@@ -91,6 +92,7 @@ jobs:
         run: |
           mkdir -p ${{ steps.set_paths.outputs.app_structure }}
           cp target/aarch64-apple-darwin/release/${{ inputs.binary }} ${{ steps.set_paths.outputs.app_structure }}
+          cp -r assets ${{ steps.set_paths.outputs.app_structure }}
           hdiutil create -fs HFS+ -volname "${{ inputs.binary }}" -srcfolder ${{ inputs.binary }}.app ${{ steps.set_paths.outputs.file_name  }}.dmg
 
       - name: Upload binaries to artifacts
