@@ -36,6 +36,9 @@ on:
       publish_to:
         description: "Publish to:"
         default: github_releases
+  release:
+    types: [published]
+
 
 jobs:
   # Load variables
@@ -119,52 +122,17 @@ jobs:
           name: windows
           path: artifacts/windows
 
-      - name: Create release
-        id: create_release
-        uses: softprops/action-gh-release@v1
+      - name: Upload Compiled PDFs as Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ needs.load-env.outputs.tag }}
-          name: Release ${{ needs.load-env.outputs.tag }}
-          body: Automated build artifacts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: builds
+          path: artifacts/
 
-      - name: Upload linux asset
-        uses: softprops/action-upload-release-asset@v1
+      - name: Release
+        uses: ncipollo/release-action@v1.14.0
+        if: github.event_name == 'release'
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/linux/linux.zip
-          asset_name: linux.zip
-          asset_content_type: application/zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload macos_apple_silicon asset
-        uses: softprops/action-upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/macos_apple_silicon/macos_apple_silicon.zip
-          asset_name: macos_apple_silicon.zip
-          asset_content_type: application/zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload macos_intel asset
-        uses: softprops/action-upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/macos_intel/macos_intel.zip
-          asset_name: macos_intel.zip
-          asset_content_type: application/zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload windows asset
-        uses: softprops/action-upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/windows/windows.zip
-          asset_name: windows.zip
-          asset_content_type: application/zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "artifacts/*"
+          allowUpdates: true
+          omitNameDuringUpdate: true
+          omitBodyDuringUpdate: true
