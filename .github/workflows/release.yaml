@@ -38,6 +38,13 @@ on:
         default: github_releases
   release:
     types: [published]
+    inputs:
+      build_for:
+        description: "Build for:"
+        default: linux,windows,macos
+      publish_to:
+        description: "Publish to:"
+        default: github_release
 
 
 jobs:
