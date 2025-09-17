@@ -33,19 +33,6 @@ on:
       build_for:
         description: "Build for:"
         default: linux,windows,macos
-      publish_to:
-        description: "Publish to:"
-        default: github_releases
-  release:
-    types: [published]
-    inputs:
-      build_for:
-        description: "Build for:"
-        default: linux,windows,macos
-      publish_to:
-        description: "Publish to:"
-        default: github_release
-
 
 jobs:
   # Load variables
@@ -60,7 +47,6 @@ jobs:
       run_build_windows: ${{ ( inputs.tag && contains(inputs.build_for, 'windows')) || (!inputs.tag && contains(env.build_for, 'windows') ) }}
       run_build_macos_intel:  ${{ ( inputs.tag && ( contains(inputs.build_for, 'intel') || contains(inputs.build_for, 'macos') )) || (!inputs.tag && (contains(env.build_for, 'intel') || contains(env.build_for, 'macos')) ) }}
       run_build_macos_apple_silicon: ${{ ( inputs.tag && ( contains(inputs.build_for, 'apple') || contains(inputs.build_for, 'macos') )) || (!inputs.tag && (contains(env.build_for, 'apple') || contains(env.build_for, 'macos')) ) }}
-      run_publish_github_releases: ${{ ( inputs.tag && contains(inputs.publish_to, 'releases')) || (!inputs.tag && contains(env.publish_to, 'releases') ) }}
       tag: ${{ ( inputs.tag || steps.get_version.outputs.tag ) }}
       binary: ${{ env.binary }}
 
@@ -132,5 +118,6 @@ jobs:
       - name: Create release with artifact
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "builds"
+          artifacts: "artifacts"
+          tag: ${{ needs.load-env.outputs.tag }}
 
