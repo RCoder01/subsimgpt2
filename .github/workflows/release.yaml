@@ -129,17 +129,8 @@ jobs:
           name: windows
           path: artifacts/windows
 
-      - name: Upload Compiled PDFs as Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create release with artifact
+        uses: ncipollo/release-action@v1
         with:
-          name: builds
-          path: artifacts/
+          artifacts: "builds"
 
-      - name: Release
-        uses: ncipollo/release-action@v1.14.0
-        if: github.event_name == 'release'
-        with:
-          artifacts: "artifacts/*"
-          allowUpdates: true
-          omitNameDuringUpdate: true
-          omitBodyDuringUpdate: true
