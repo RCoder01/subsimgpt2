@@ -115,7 +115,7 @@ jobs:
       - name: Create release with artifact
         uses: ncipollo/release-action@v1.20.0
         with:
-          artifacts: "artifacts"
+          artifacts: "artifacts/linux,artifacts/macos_apple_silicon,artifacts/macos_intel,artifacts/windows"
           tag: ${{ needs.load-env.outputs.tag }}
           commit: ${{ github.ref_name }}
 
