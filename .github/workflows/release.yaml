@@ -114,7 +114,7 @@ jobs:
           path: artifacts/windows
 
       - name: Create release with artifact
-        uses: ncipollo/release-action@v1.20
+        uses: ncipollo/release-action@v1.20.0
         with:
           name: ${{ needs.load-env.outputs.release_name }}
           artifacts: "artifacts"
