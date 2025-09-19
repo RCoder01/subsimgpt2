@@ -21,13 +21,10 @@ permissions:
   id-token: write
 
 on:
-  push:
-    tags:
-      - "*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Add tag version: (e.g. -> v3.6.1)"
+        description: "Add release name: (e.g. -> v3.6.1)"
         required: true
         type: string
       build_for:
@@ -47,7 +44,8 @@ jobs:
       run_build_windows: ${{ ( inputs.tag && contains(inputs.build_for, 'windows')) || (!inputs.tag && contains(env.build_for, 'windows') ) }}
       run_build_macos_intel:  ${{ ( inputs.tag && ( contains(inputs.build_for, 'intel') || contains(inputs.build_for, 'macos') )) || (!inputs.tag && (contains(env.build_for, 'intel') || contains(env.build_for, 'macos')) ) }}
       run_build_macos_apple_silicon: ${{ ( inputs.tag && ( contains(inputs.build_for, 'apple') || contains(inputs.build_for, 'macos') )) || (!inputs.tag && (contains(env.build_for, 'apple') || contains(env.build_for, 'macos')) ) }}
-      tag: ${{ ( inputs.tag || steps.get_version.outputs.tag ) }}
+      release_name: ${{ inputs.release_name }}
+      tag: ${{ steps.get_version.outputs.tag }}
       binary: ${{ env.binary }}
 
   # Build for Linux x86_64
@@ -116,8 +114,9 @@ jobs:
           path: artifacts/windows
 
       - name: Create release with artifact
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@v1.20
         with:
+          name: ${{ needs.load-env.outputs.release_name }}
           artifacts: "artifacts"
           tag: ${{ needs.load-env.outputs.tag }}
 
