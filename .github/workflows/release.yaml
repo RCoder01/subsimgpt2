@@ -115,7 +115,7 @@ jobs:
       - name: Create release with artifact
         uses: ncipollo/release-action@v1.20.0
         with:
-          artifacts: "artifacts/**/*.zip"
+          artifacts: "artifacts/**/*.*"
           tag: ${{ needs.load-env.outputs.tag }}
           commit: ${{ github.ref_name }}
 
