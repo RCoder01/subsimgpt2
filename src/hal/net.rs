@@ -68,7 +68,7 @@ fn dbg_send_count(mut count: Local<usize>) {
         warn!(
             "{} messages cancelled in the last {} ticks",
             cancelled, ticks
-        )
+        );
     }
 }
 
@@ -274,6 +274,7 @@ pub enum MLTargetKind {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct MLTargetData {
     pub kind: MLTargetKind,
     pub left: f32,
@@ -282,6 +283,7 @@ pub struct MLTargetData {
     pub bottom: f32,
 }
 
+#[derive(Debug)]
 pub enum OutgoingMessage {
     Sensors(SensorMessage),
     BotcamImage(SystemTime, Image),
